@@ -8,3 +8,9 @@
 ## Pretrained Model
 
 ## Auxiliary Models
+
+## Inference
+- Run the demo.py
+    ```
+    python demo.py
+    ```
