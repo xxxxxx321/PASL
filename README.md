@@ -19,6 +19,9 @@
     pip install -r requirements.txt
     ```
 ## Pretrained Model
+|Path|Description|
+|[CSG Model](https://drive.google.com/drive/folders/1VopnXUj0BpebSUWHja2TsvfUkM93p0bl?usp=sharing)|Unzip it and place it into the data directory|
+|[AEG Model](https://drive.google.com/file/d/1fwRuMjjR-CinGd-niwDAvJ_l9UnH5AgM/view?usp=sharing)|Unzip it and place it into the checkpoints directory|
 
 ## Auxiliary Models
 
