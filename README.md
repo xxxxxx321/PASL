@@ -20,11 +20,11 @@
     ```
 ## Pretrained Model
 |Path|Description|
-|[CSG Model](https://drive.google.com/drive/folders/1VopnXUj0BpebSUWHja2TsvfUkM93p0bl?usp=sharing)|Unzip it and place it into the data directory|
+|[CSG Model](https://drive.google.com/file/d/10cNTvXIHllW1_rIgQovHE26_ASfKtLX7/view?usp=sharing)|Unzip it and place it into the data directory|
 |[AEG Model](https://drive.google.com/file/d/1fwRuMjjR-CinGd-niwDAvJ_l9UnH5AgM/view?usp=sharing)|Unzip it and place it into the main directory|
 
 ## Auxiliary Models
-
+|[Albedo model](https://drive.google.com/file/d/1JZwaNh443hO4tLB0F3FSuT4X9euaDQIZ/view?usp=sharing)|Unzip it and place it into the data directory|
 ## Inference
 - Run the demo.py
     ```
