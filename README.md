@@ -7,7 +7,7 @@
 Clone the repo:
 
     ```
-    git clone https://https://github.com/xxxxxx321/PASL
+    git clone https://https://github.com/xxxxxx321/PASL\n
     cd PASL
     ```
 ## Installation
