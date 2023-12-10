@@ -12,8 +12,8 @@
 ## Installation
 - Python 3.8
 - Pytorch 1.11.0
-1. Please Please refer to DECA to install the required packages.
-2. Please Please refer to Pytorch3d to install the required packages.
+1. Please Please refer to [DECA](https://github.com/yfeng95/DECA) to install the required packages.
+2. Please Please refer to [Pytorch3d](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md) to install the required packages.
 ## Pretrained Model
 
 ## Auxiliary Models
