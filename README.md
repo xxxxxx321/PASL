@@ -10,8 +10,9 @@
     cd PASL
     ```
 ## Installation
-### Python 3.8
-### Pytorch 1.11.0
+- Python 3.8
+- Pytorch 1.11.0
+- Please Please refer to DECA to install the required packages.
 ## Pretrained Model
 
 ## Auxiliary Models
