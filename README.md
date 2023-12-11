@@ -6,7 +6,7 @@
 
 
 
-[video](https://github.com/xxxxxx321/PASL/tree/main/examples/sample.mp4)
+https://github.com/xxxxxx321/PASL/tree/main/examples/sample.mp4
 
 
 ## Getting Started
