@@ -22,8 +22,8 @@ https://github.com/xxxxxx321/PASL/assets/151173571/88824fb8-fcaa-4035-a510-6e5cb
 ## Installation
 - Python 3.8
 - Pytorch 1.11.0
-1. Please Please refer to [DECA](https://github.com/yfeng95/DECA) to install the required packages.
-2. Please Please refer to [Pytorch3d](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md) to install the required packages.
+1. Please refer to [DECA](https://github.com/yfeng95/DECA) to install the required packages.
+2. Please refer to [Pytorch3d](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md) to install the required packages.
 3. Install other requirements
    ```
     pip install -r requirements.txt
