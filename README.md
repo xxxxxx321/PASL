@@ -16,7 +16,7 @@ https://github.com/xxxxxx321/PASL/assets/151173571/88824fb8-fcaa-4035-a510-6e5cb
 ## Getting Started
 - Clone the repo:
     ```
-    git clone https://https://github.com/xxxxxx321/PASL
+    git clonehttps://github.com/xxxxxx321/PASL
     cd PASL
     ```
 ## Installation
