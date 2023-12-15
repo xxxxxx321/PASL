@@ -30,7 +30,7 @@ import time
 import os
 import threading
 
-from PIL import Image
+from PIL import Image 
 from decalib.deca import DECA
 from decalib.datasets import datasets 
 from decalib.utils import util
@@ -77,7 +77,7 @@ parser.add_argument('--self_att', action='store_true', default=True,
                     help='use self-attention')
 parser.add_argument('--w_hpf', type=float, default=1,
                     help='weight for high-pass filtering')
-parser.add_argument('--resume_iter', type=int, default=200000,
+parser.add_argument('--resume_iter', type=int, default=195000,
                     help='Iterations to resume training/testing')
 parser.add_argument('--val_batch_size', type=int, default=32,
                     help='Batch size for validation')
@@ -165,6 +165,39 @@ def fuse_shape(deca, face_detector, src_codedict, ref_img):
             lm_image_list.append(lm_image)
     return depth_image_list, lm_image_list
 
+def get_shape(deca, face_detector, ref_img):
+    testdata = datasets.TestData(face_detector, [ref_img], iscrop=True, face_detector='fan', sample_step=10)
+    device = 'cuda'
+    i=0
+    depth_image_list = []
+    lm_image_list = []
+    deca_cfg.model.use_tex = False
+    deca_cfg.rasterizer_type = 'pytorch3d'
+    deca_cfg.model.extract_tex = True
+    img = testdata[i]['image'].to(device)[None,...]
+    with torch.no_grad():
+        ref_codedict = deca.encode(img)
+        temp = ref_codedict
+        tform = testdata[0]['tform'][None, ...]
+        tform = torch.inverse(tform).transpose(1,2).to(device)
+        original_image = testdata[0]['original_image'][None, ...].to(device)
+        orig_opdict, orig_visdict = deca.decode(temp, render_orig=True, original_image=original_image, tform=tform)    
+        # orig_visdict['inputs'] = original_image
+        # cv2.imwrite('1.png', cv2.resize(util.tensor2image(orig_visdict['landmarks2d'][0]),(256,256)))
+        lm_image = cv2.resize(util.tensor2image(orig_visdict['landmarks2d'][0]),(256,256))
+        depth_image = deca.render.render_depth(orig_opdict['trans_verts']).repeat(1,3,1,1)[0]
+
+        depth_image = depth_image.detach().cpu().numpy()
+        depth_image = depth_image*255.
+        depth_image = np.maximum(np.minimum(depth_image, 255), 0)
+        depth_image = depth_image.transpose(1,2,0)[:,:,[2,1,0]]
+        depth_image = Image.fromarray(np.uint8(depth_image))
+        lm_image = Image.fromarray(lm_image)
+        for k in range(4):
+            depth_image_list.append(depth_image)
+            lm_image_list.append(lm_image)
+    return depth_image_list, lm_image_list
+
 
 def get_codedict(deca, face_detector, img_list):
     testdata = datasets.TestData(face_detector, img_list, iscrop=True, face_detector='fan', sample_step=10)
@@ -184,7 +217,7 @@ def get_codedict(deca, face_detector, img_list):
 
 def main_face(kkk):
     solver = Solver(args)
-    cfg = yaml.load(open(args.config), Loader=yaml.SafeLoader)
+    # cfg = yaml.load(open(args.config), Loader=yaml.SafeLoader)
     print("Loading the FAN Model......")
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True, device='cuda')
     if args.onnx:
@@ -196,12 +229,12 @@ def main_face(kkk):
         from FaceBoxes.FaceBoxes_ONNX import FaceBoxes_ONNX
         from TDDFA_ONNX import TDDFA_ONNX
 
-        face_boxes = FaceBoxes_ONNX()
-        tddfa = TDDFA_ONNX(**cfg)
-    else:
-        gpu_mode = args.mode == 'gpu'
-        tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
-        face_boxes = FaceBoxes()
+    #     face_boxes = FaceBoxes_ONNX()
+    #     tddfa = TDDFA_ONNX(**cfg)
+    # else:
+    #     gpu_mode = args.mode == 'gpu'
+    #     tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
+    #     face_boxes = FaceBoxes()
 
     # Given a camera
     # before run this line, make sure you have installed `imageio-ffmpeg`
@@ -212,15 +245,19 @@ def main_face(kkk):
     # cap.set(cv2.CAP_PROP_FPS, 4)
     # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
     # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 480)
-    n_pre, n_next = args.n_pre, args.n_next
-    n = n_pre + n_next + 1
-    queue_ver = deque()
-    queue_frame = deque()
+    # n_pre, n_next = args.n_pre, args.n_next
+    # n = n_pre + n_next + 1
+    # queue_ver = deque()
+    # queue_frame = deque()
 
-    # run
-    dense_flag = args.opt in ('2d_dense', '3d', 'pncc')
-    pre_ver = None
-    
+    # # run
+    # dense_flag = args.opt in ('2d_dense', '3d', 'pncc')
+    # pre_ver = None
+    img_size = 256
+    transform = transforms.Compose([
+        transforms.Resize([img_size, img_size]),
+        transforms.ToTensor()
+    ])
     #input img
     img_crop = cv2.imread('./examples/352.jpg')
     img_crop_2 = cv2.imread('./examples/287.jpg')
@@ -232,7 +269,7 @@ def main_face(kkk):
     img_crop_3 = cv2.resize(img_crop_3, (256, 256))
     img_crop_4 = cv2.resize(img_crop_4, (256, 256))
 
-    src_codedict = get_codedict(deca, face_detector, [img_crop, img_crop_2, img_crop_3 ,img_crop_4])
+    # src_codedict = get_codedict(deca, face_detector, [img_crop, img_crop_2, img_crop_3 ,img_crop_4])
 
     source = toTensor(img_crop)
     source_2 = toTensor(img_crop_2)
@@ -250,9 +287,9 @@ def main_face(kkk):
     source_all=source_all.type(torch.HalfTensor).cuda() #modify
 
     source_style_code = solver.extract(source_all)
-    i = 0
-    idx = 0
-    freq = 2
+    # i = 0
+    # idx = 0
+    # freq = 2
 
     cap = ipcamCapture(0)
     cap.start()
@@ -264,151 +301,143 @@ def main_face(kkk):
         # ret, frame = cap.read()
         frame = cap.getframe()
         frame_bgr = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-        # preds = fa.get_landmarks(frame_bgr)
+        preds = fa.get_landmarks(frame_bgr)
         try:
-            preds = fa.get_landmarks(frame_bgr)
-            img_crop2, img_shape, shape = get_arcface(frame_bgr, preds)
-            # ref_codedict = get_codedict(deca, face_detector, img_crop2)
-            depth_image_list, lm_image_list = fuse_shape(deca, face_detector, img_crop2)
+            # img_crop2, img_shape, shape = get_arcface(frame_bgr, preds)
+            # depth_image_list, lm_image_list = fuse_shape(deca, face_detector, src_codedict, np.array(img_crop2))
+            img_crop2 = get_arcface(frame_bgr, preds)
+            depth_image_list, lm_image_list = get_shape(deca, face_detector, np.array(img_crop2))
         except:
+            img_crop2 = cv2.imread('./examples/smiling.png')
             all = cv2.imread('./examples/smiling.png')
-            yield all, all
+            yield img_crop2,all
             continue
 
-        if i == 0:
-            # the first frame, detect face, here we only use the first face, you can change depending on your need
-            try:
-                boxes = face_boxes(img_crop2)
-                boxes = [boxes[0]]
-                param_lst, roi_box_lst = tddfa(img_crop2, boxes)
-                ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+        # if i == 0:
+        #     # the first frame, detect face, here we only use the first face, you can change depending on your need
 
-                # refine
-                param_lst, roi_box_lst = tddfa(img_crop2, [ver], crop_policy='landmark')
-                ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
-                
-                # padding queue
-                for _ in range(n_pre):
-                    queue_ver.append(ver.copy())
-                queue_ver.append(ver.copy())
-                for _ in range(n_pre):
-                    queue_frame.append(img_crop2.copy())
-                queue_frame.append(img_crop2.copy())
-            except:
-                all = cv2.imread('./examples/smiling.png')
-                yield all, all
-                continue
-        else:
-            try:
-                param_lst, roi_box_lst = tddfa(img_crop2, [pre_ver], crop_policy='landmark')
-            except:
-                all = cv2.imread('./examples/smiling.png')
-                yield all, all
-                continue
+        #     boxes = face_boxes(img_crop2)
+        #     if boxes==[]:continue
+        #     boxes = [boxes[0]]
+        #     param_lst, roi_box_lst = tddfa(img_crop2, boxes)
+        #     ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
 
-            roi_box = roi_box_lst[0]
-            # todo: add confidence threshold to judge the tracking is failed
-            if abs(roi_box[2] - roi_box[0]) * abs(roi_box[3] - roi_box[1]) < 2020:
-                boxes = face_boxes(img_crop2)
-                boxes = [boxes[0]]
-                param_lst, roi_box_lst = tddfa(img_crop2, boxes)
+        #     # refine
+        #     param_lst, roi_box_lst = tddfa(img_crop2, [ver], crop_policy='landmark')
+        #     ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+            
+        #     # padding queue
+        #     for _ in range(n_pre):
+        #         queue_ver.append(ver.copy())
+        #     queue_ver.append(ver.copy())
 
-            ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+        #     for _ in range(n_pre):
+        #         queue_frame.append(img_crop2.copy())
+        #     queue_frame.append(img_crop2.copy())
+        # else:
+        #     try:
+        #         param_lst, roi_box_lst = tddfa(img_crop2, [pre_ver], crop_policy='landmark')
+        #     except:
+        #         continue
 
-            queue_ver.append(ver.copy())
-            queue_frame.append(img_crop2.copy())
+        #     roi_box = roi_box_lst[0]
+        #     # todo: add confidence threshold to judge the tracking is failed
+        #     if abs(roi_box[2] - roi_box[0]) * abs(roi_box[3] - roi_box[1]) < 2020:
+        #         boxes = face_boxes(img_crop2)
+        #         boxes = [boxes[0]]
+        #         param_lst, roi_box_lst = tddfa(img_crop2, boxes)
 
-        pre_ver = ver  # for tracking
+        #     ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+
+        #     queue_ver.append(ver.copy())
+        #     queue_frame.append(img_crop2.copy())
+
+        # pre_ver = ver  # for tracking
 
         # smoothing: enqueue and dequeue ops
-        if len(queue_ver) >= n:
-            ver_ave = np.mean(queue_ver, axis=0)
+        # if len(queue_ver) >= n:
+        #     ver_ave = np.mean(queue_ver, axis=0)
 
-            if args.opt == '2d_sparse':
-                img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave)  # since we use padding
-            elif args.opt == '2d_dense':
-                img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave, size=1)
-            elif args.opt == '3d':
-                img_draw = render(queue_frame[n_pre], [ver_ave], tddfa.tri, alpha=0.7)
-            elif args.opt == 'pncc':
-                img_draw = pncc(queue_frame[n_pre], [ver_ave], tddfa.tri, show_flag=None, wfp=None, with_bg_flag=False)
-            else:
-                raise ValueError(f'Unknown opt {args.opt}')
+        #     if args.opt == '2d_sparse':
+        #         img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave)  # since we use padding
+        #     elif args.opt == '2d_dense':
+        #         img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave, size=1)
+        #     elif args.opt == '3d':
+        #         img_draw = render(queue_frame[n_pre], [ver_ave], tddfa.tri, alpha=0.7)
+        #     elif args.opt == 'pncc':
+        #         img_draw = pncc(queue_frame[n_pre], [ver_ave], tddfa.tri, show_flag=None, wfp=None, with_bg_flag=False)
+        #     else:
+        #         raise ValueError(f'Unknown opt {args.opt}')
             
-            img_shape = toTensor(img_shape)
-            lm_shape = np.zeros((4, 3, 256, 256))
-            lm_shape = torch.from_numpy(lm_shape)
-            lm_shape= lm_shape.float()
+        # img_shape = toTensor(img_shape)
+        lm_shape = np.zeros((4, 3, 256, 256))
+        lm_shape = torch.from_numpy(lm_shape)
+        lm_shape= lm_shape.float()
 
-            lm_shape[0,:,:,:] = img_shape
-            lm_shape[1,:,:,:] = img_shape
-            lm_shape[2,:,:,:] = img_shape
-            lm_shape[3,:,:,:] = img_shape
-            img_draw = toTensor(img_draw)
+        lm_shape[0,:,:,:] = transform(lm_image_list[0])
+        lm_shape[1,:,:,:] = transform(lm_image_list[1])
+        lm_shape[2,:,:,:] = transform(lm_image_list[2])
+        lm_shape[3,:,:,:] = transform(lm_image_list[3])
+        # img_draw = toTensor(img_draw)
 
-            pncc_map = np.zeros((4, 3, 256, 256))
-            pncc_map = torch.from_numpy(pncc_map)
-            pncc_map= pncc_map.float()
+        pncc_map = np.zeros((4, 3, 256, 256))
+        pncc_map = torch.from_numpy(pncc_map)
+        pncc_map= pncc_map.float()
 
-            pncc_map[0,:,:,:] = img_draw
-            pncc_map[1,:,:,:] = img_draw
-            pncc_map[2,:,:,:] = img_draw
-            pncc_map[3,:,:,:] = img_draw
-            img_fake, img_fake_2, img_fake_3, img_fake_4 = solver.sample(source_style_code, pncc_map, lm_shape)
-            # img_fake = cv2.cvtColor(img_fake, cv2.COLOR_RGB2BGR)
-            # img_fake_2 = cv2.cvtColor(img_fake_2, cv2.COLOR_RGB2BGR)
-            # img_fake_3 = cv2.cvtColor(img_fake_3, cv2.COLOR_RGB2BGR)
-            # img_fake_4 = cv2.cvtColor(img_fake_4, cv2.COLOR_RGB2BGR)
+        pncc_map[0,:,:,:] = transform(depth_image_list[0])
+        pncc_map[1,:,:,:] = transform(depth_image_list[1])
+        pncc_map[2,:,:,:] = transform(depth_image_list[2])
+        pncc_map[3,:,:,:] = transform(depth_image_list[3])
+        img_fake, img_fake_2, img_fake_3, img_fake_4 = solver.sample(source_style_code, pncc_map, lm_shape)
+        all = np.zeros((512, 512, 3), np.uint8)
 
-            all = np.zeros((512, 512, 3), np.uint8)
+        img_fake = cv2.resize(img_fake, (256,256))
+        img_fake_2 = cv2.resize(img_fake_2, (256,256))
+        img_fake_3 = cv2.resize(img_fake_3, (256,256))
+        img_fake_4 = cv2.resize(img_fake_4, (256,256))
 
-            img_fake = cv2.resize(img_fake, (256,256))
-            img_fake_2 = cv2.resize(img_fake_2, (256,256))
-            img_fake_3 = cv2.resize(img_fake_3, (256,256))
-            img_fake_4 = cv2.resize(img_fake_4, (256,256))
-
-            all[:256, :256, :] = img_fake
-            all[:256, 256:512, :] = img_fake_2
-            all[256:512, :256, :] = img_fake_3
-            all[256:512, 256:512, :] = img_fake_4
-            
-            queue_ver.popleft()
-            queue_frame.popleft()
-            yield img_crop2, all #modify
+        all[:256, :256, :] = img_fake
+        all[:256, 256:512, :] = img_fake_2
+        all[256:512, :256, :] = img_fake_3
+        all[256:512, 256:512, :] = img_fake_4
+        
+        # queue_ver.popleft()
+        # queue_frame.popleft()
+        yield img_crop2,all #modify
 
 #-------------------------------------------------------------------------------------
 def main_face_video(video):
     solver = Solver(args)
-    cfg = yaml.load(open(args.config), Loader=yaml.SafeLoader)
+    # cfg = yaml.load(open(args.config), Loader=yaml.SafeLoader)
     print("Loading the FAN Model......")
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType._2D, flip_input=True, device='cuda')
-    if args.onnx:
-        import os
-        os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-        os.environ['OMP_NUM_THREADS'] = '4'
+    # if args.onnx:
+    #     import os
+    #     os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+    #     os.environ['OMP_NUM_THREADS'] = '4'
 
-        from FaceBoxes.FaceBoxes_ONNX import FaceBoxes_ONNX
-        from TDDFA_ONNX import TDDFA_ONNX
+    #     from FaceBoxes.FaceBoxes_ONNX import FaceBoxes_ONNX
+    #     from TDDFA_ONNX import TDDFA_ONNX
 
-        face_boxes = FaceBoxes_ONNX()
-        tddfa = TDDFA_ONNX(**cfg)
-    else:
-        gpu_mode = args.mode == 'gpu'
-        tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
-        face_boxes = FaceBoxes()
+    #     face_boxes = FaceBoxes_ONNX()
+    #     tddfa = TDDFA_ONNX(**cfg)
+    # else:
+    #     gpu_mode = args.mode == 'gpu'
+    #     tddfa = TDDFA(gpu_mode=gpu_mode, **cfg)
+    #     face_boxes = FaceBoxes()
 
     
     cap = cv2.VideoCapture(video)
         
     # flag = 0
-    n_pre, n_next = args.n_pre, args.n_next
-    n = n_pre + n_next + 1
-    queue_ver = deque()
-    queue_frame = deque()
+    # n_pre, n_next = args.n_pre, args.n_next
+    # n = n_pre + n_next + 1
+    # queue_ver = deque()
+    # queue_frame = deque()
 
     # run
-    dense_flag = args.opt in ('2d_dense', '3d', 'pncc')
-    pre_ver = None
+    # dense_flag = args.opt in ('2d_dense', '3d', 'pncc')
+    # pre_ver = None
     img_size = 256
     transform = transforms.Compose([
         transforms.Resize([img_size, img_size]),
@@ -433,7 +462,7 @@ def main_face_video(video):
 
     deca = DECA(config = deca_cfg, device='cuda')
     face_detector = detectors.FAN()
-    src_codedict = get_codedict(deca, face_detector, [np.array(img_crop), np.array(img_crop_2), np.array(img_crop_3), np.array(img_crop_4)])
+    # src_codedict = get_codedict(deca, face_detector, [np.array(img_crop), np.array(img_crop_2), np.array(img_crop_3), np.array(img_crop_4)])
 
     source = toTensor(img_crop)
     source_2 = toTensor(img_crop_2)
@@ -460,109 +489,111 @@ def main_face_video(video):
         idx += 1
         ret = cap.grab()
         if idx % freq ==0:
-            ret, frame_bgr = tqdm(cap.retrieve())
+            ret, frame_bgr = cap.retrieve()
             frame_bgr = cv2.cvtColor(frame_bgr,cv2.COLOR_BGR2RGB)
             preds = fa.get_landmarks(frame_bgr)
             try:
-                img_crop2, img_shape, shape = get_arcface(frame_bgr, preds)
-                depth_image_list, lm_image_list = fuse_shape(deca, face_detector, src_codedict, np.array(img_crop2))
+                # img_crop2, img_shape, shape = get_arcface(frame_bgr, preds)
+                # depth_image_list, lm_image_list = fuse_shape(deca, face_detector, src_codedict, np.array(img_crop2))
+                img_crop2 = get_arcface(frame_bgr, preds)
+                depth_image_list, lm_image_list = get_shape(deca, face_detector, np.array(img_crop2))
             except:
                 img_crop2 = cv2.imread('./examples/smiling.png')
                 all = cv2.imread('./examples/smiling.png')
                 yield img_crop2,all
                 continue
 
-            if i == 0:
-                # the first frame, detect face, here we only use the first face, you can change depending on your need
+            # if i == 0:
+            #     # the first frame, detect face, here we only use the first face, you can change depending on your need
 
-                boxes = face_boxes(img_crop2)
-                if boxes==[]:continue
-                boxes = [boxes[0]]
-                param_lst, roi_box_lst = tddfa(img_crop2, boxes)
-                ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+            #     boxes = face_boxes(img_crop2)
+            #     if boxes==[]:continue
+            #     boxes = [boxes[0]]
+            #     param_lst, roi_box_lst = tddfa(img_crop2, boxes)
+            #     ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
 
-                # refine
-                param_lst, roi_box_lst = tddfa(img_crop2, [ver], crop_policy='landmark')
-                ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+            #     # refine
+            #     param_lst, roi_box_lst = tddfa(img_crop2, [ver], crop_policy='landmark')
+            #     ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
                 
-                # padding queue
-                for _ in range(n_pre):
-                    queue_ver.append(ver.copy())
-                queue_ver.append(ver.copy())
+            #     # padding queue
+            #     for _ in range(n_pre):
+            #         queue_ver.append(ver.copy())
+            #     queue_ver.append(ver.copy())
 
-                for _ in range(n_pre):
-                    queue_frame.append(img_crop2.copy())
-                queue_frame.append(img_crop2.copy())
-            else:
-                try:
-                    param_lst, roi_box_lst = tddfa(img_crop2, [pre_ver], crop_policy='landmark')
-                except:
-                    continue
+            #     for _ in range(n_pre):
+            #         queue_frame.append(img_crop2.copy())
+            #     queue_frame.append(img_crop2.copy())
+            # else:
+            #     try:
+            #         param_lst, roi_box_lst = tddfa(img_crop2, [pre_ver], crop_policy='landmark')
+            #     except:
+            #         continue
 
-                roi_box = roi_box_lst[0]
-                # todo: add confidence threshold to judge the tracking is failed
-                if abs(roi_box[2] - roi_box[0]) * abs(roi_box[3] - roi_box[1]) < 2020:
-                    boxes = face_boxes(img_crop2)
-                    boxes = [boxes[0]]
-                    param_lst, roi_box_lst = tddfa(img_crop2, boxes)
+            #     roi_box = roi_box_lst[0]
+            #     # todo: add confidence threshold to judge the tracking is failed
+            #     if abs(roi_box[2] - roi_box[0]) * abs(roi_box[3] - roi_box[1]) < 2020:
+            #         boxes = face_boxes(img_crop2)
+            #         boxes = [boxes[0]]
+            #         param_lst, roi_box_lst = tddfa(img_crop2, boxes)
 
-                ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
+            #     ver = tddfa.recon_vers(param_lst, roi_box_lst, dense_flag=dense_flag)[0]
 
-                queue_ver.append(ver.copy())
-                queue_frame.append(img_crop2.copy())
+            #     queue_ver.append(ver.copy())
+            #     queue_frame.append(img_crop2.copy())
 
-            pre_ver = ver  # for tracking
+            # pre_ver = ver  # for tracking
 
             # smoothing: enqueue and dequeue ops
-            if len(queue_ver) >= n:
-                ver_ave = np.mean(queue_ver, axis=0)
+            # if len(queue_ver) >= n:
+            #     ver_ave = np.mean(queue_ver, axis=0)
 
-                if args.opt == '2d_sparse':
-                    img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave)  # since we use padding
-                elif args.opt == '2d_dense':
-                    img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave, size=1)
-                elif args.opt == '3d':
-                    img_draw = render(queue_frame[n_pre], [ver_ave], tddfa.tri, alpha=0.7)
-                elif args.opt == 'pncc':
-                    img_draw = pncc(queue_frame[n_pre], [ver_ave], tddfa.tri, show_flag=None, wfp=None, with_bg_flag=False)
-                else:
-                    raise ValueError(f'Unknown opt {args.opt}')
+            #     if args.opt == '2d_sparse':
+            #         img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave)  # since we use padding
+            #     elif args.opt == '2d_dense':
+            #         img_draw = cv_draw_landmark(queue_frame[n_pre], ver_ave, size=1)
+            #     elif args.opt == '3d':
+            #         img_draw = render(queue_frame[n_pre], [ver_ave], tddfa.tri, alpha=0.7)
+            #     elif args.opt == 'pncc':
+            #         img_draw = pncc(queue_frame[n_pre], [ver_ave], tddfa.tri, show_flag=None, wfp=None, with_bg_flag=False)
+            #     else:
+            #         raise ValueError(f'Unknown opt {args.opt}')
                 
-                img_shape = toTensor(img_shape)
-                lm_shape = np.zeros((4, 3, 256, 256))
-                lm_shape = torch.from_numpy(lm_shape)
-                lm_shape= lm_shape.float()
+            # img_shape = toTensor(img_shape)
+            lm_shape = np.zeros((4, 3, 256, 256))
+            lm_shape = torch.from_numpy(lm_shape)
+            lm_shape= lm_shape.float()
 
-                lm_shape[0,:,:,:] = transform(lm_image_list[0])
-                lm_shape[1,:,:,:] = transform(lm_image_list[1])
-                lm_shape[2,:,:,:] = transform(lm_image_list[2])
-                lm_shape[3,:,:,:] = transform(lm_image_list[3])
-                img_draw = toTensor(img_draw)
+            lm_shape[0,:,:,:] = transform(lm_image_list[0])
+            lm_shape[1,:,:,:] = transform(lm_image_list[1])
+            lm_shape[2,:,:,:] = transform(lm_image_list[2])
+            lm_shape[3,:,:,:] = transform(lm_image_list[3])
+            # img_draw = toTensor(img_draw)
 
-                pncc_map = np.zeros((4, 3, 256, 256))
-                pncc_map = torch.from_numpy(pncc_map)
-                pncc_map= pncc_map.float()
+            pncc_map = np.zeros((4, 3, 256, 256))
+            pncc_map = torch.from_numpy(pncc_map)
+            pncc_map= pncc_map.float()
 
-                pncc_map[0,:,:,:] = transform(depth_image_list[0])
-                pncc_map[1,:,:,:] = transform(depth_image_list[1])
-                pncc_map[2,:,:,:] = transform(depth_image_list[2])
-                pncc_map[3,:,:,:] = transform(depth_image_list[3])
-                img_fake, img_fake_2, img_fake_3, img_fake_4 = solver.sample(source_style_code, pncc_map, lm_shape)
-                all = np.zeros((512, 512, 3), np.uint8)
+            pncc_map[0,:,:,:] = transform(depth_image_list[0])
+            pncc_map[1,:,:,:] = transform(depth_image_list[1])
+            pncc_map[2,:,:,:] = transform(depth_image_list[2])
+            pncc_map[3,:,:,:] = transform(depth_image_list[3])
+            img_fake, img_fake_2, img_fake_3, img_fake_4 = solver.sample(source_style_code, pncc_map, lm_shape)
+            all = np.zeros((512, 512, 3), np.uint8)
 
-                img_fake = cv2.resize(img_fake, (256,256))
-                img_fake_2 = cv2.resize(img_fake_2, (256,256))
-                img_fake_3 = cv2.resize(img_fake_3, (256,256))
-                img_fake_4 = cv2.resize(img_fake_4, (256,256))
+            img_fake = cv2.resize(img_fake, (256,256))
+            img_fake_2 = cv2.resize(img_fake_2, (256,256))
+            img_fake_3 = cv2.resize(img_fake_3, (256,256))
+            img_fake_4 = cv2.resize(img_fake_4, (256,256))
 
-                all[:256, :256, :] = img_fake
-                all[:256, 256:512, :] = img_fake_2
-                all[256:512, :256, :] = img_fake_3
-                all[256:512, 256:512, :] = img_fake_4
-                
-                queue_ver.popleft()
-                queue_frame.popleft()
-                yield img_crop2,all #modify
+            all[:256, :256, :] = img_fake
+            all[:256, 256:512, :] = img_fake_2
+            all[256:512, :256, :] = img_fake_3
+            all[256:512, 256:512, :] = img_fake_4
+            
+            # queue_ver.popleft()
+            # queue_frame.popleft()
+            yield img_crop2,all #modify
 
 #---------------------------------------------------------------------------------------------------------
 from typing import Union, Iterable
@@ -615,31 +646,35 @@ class Seafoam(Base):
             button_large_padding="32px",
         )
 
+css='''
+#image_upload{min-height:400px}
+#image_upload [data-testid="image"], #image_upload [data-testid="image"] > div{min-height: 400px}
+'''
 
 
 seafoam = Seafoam()
 
-
-with gr.Blocks(theme=seafoam) as demo:
+with gr.Blocks(theme=seafoam, css=css) as demo:
     with gr.Row():
         gr.Markdown("""# Webcam Input""")
+        gr.Markdown("# Source Image")
         gr.Markdown("# Tranformed Faces")
     with gr.Row():
         # crop_frames = gr.Image(label="webcam input")
-        crop_frames = gr.Image(shape=[256,256])
-        output_video = gr.Image(label="output",shape=[256,256])
-    with gr.Row():
-        gr.Markdown("""# Source Image""")
-    with gr.Row():
-        
-        gr.Markdown("""![image](file/examples/352.jpg)""")
-        gr.Markdown("""![image](file/examples/287.jpg)""")
-        gr.Markdown("""![image](file/examples/96.jpg)""")
-        gr.Markdown("""![image](file/examples/514.jpg)""")
+        crop_frames = gr.Image(show_label=False, show_download_button=False).style(height=480,width=480)
+        source_image = gr.Image('./examples/source_samples.png',show_label=False, show_download_button=False).style(height=480,width=480)
+        output_video = gr.Image(label="output",show_label=False, show_download_button=False).style(height=480,width=480)
+    # with gr.Row():
+    #     gr.Markdown("""# Source Image""")
+    # with gr.Row():
+    #     gr.Markdown("""![image](file/examples/352.jpg)""")
+    #     gr.Markdown("""![image](file/examples/287.jpg)""")
+    #     gr.Markdown("""![image](file/examples/96.jpg)""")
+    #     gr.Markdown("""![image](file/examples/514.jpg)""")
     with gr.Row():
         with gr.Column():
             gr.Markdown("""# MP4 Input""")
-            input_video = gr.Video(label="video input",value='examples/bidencut.mp4')
+            input_video = gr.Video(label="video input",value='examples/bidencut1.mp4')
         with gr.Column():
             gr.Markdown("""# Buttons""")
             with gr.Row():
