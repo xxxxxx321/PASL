@@ -30,7 +30,7 @@ https://github.com/xxxxxx321/PASL/assets/151173571/88824fb8-fcaa-4035-a510-6e5cb
 |Path|Description|
 |---|---|
 |[CSG Model](https://drive.google.com/file/d/10cNTvXIHllW1_rIgQovHE26_ASfKtLX7/view?usp=sharing)|Unzip it and place it into the data directory|
-|[AEG Model](https://drive.google.com/file/d/1fwRuMjjR-CinGd-niwDAvJ_l9UnH5AgM/view?usp=sharing)|Unzip it and place it into the main directory|
+|[AEG Model](https://drive.google.com/file/d/1GCDhgMatmHH1LITpVgB_RTfpjAF13MXu/view?usp=sharing)|Unzip it and place it into the main directory|
 
 ## Auxiliary Models
 |Path|Description|
