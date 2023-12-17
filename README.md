@@ -35,7 +35,7 @@ https://github.com/xxxxxx321/PASL/assets/151173571/88824fb8-fcaa-4035-a510-6e5cb
 ## Auxiliary Models
 |Path|Description|
 |---|---|
-|[Albedo model](https://drive.google.com/file/d/1JZwaNh443hO4tLB0F3FSuT4X9euaDQIZ/view?usp=sharing)|Unzip it and place it into the data directory|
+|[Albedo model](https://drive.google.com/file/d/1VlSlEXAhseguor_T13Vy9oGpTgSakXZ8/view?usp=sharing)|Unzip it and place it into the data directory|
 ## Inference
 - Run the demo.py
     ```
